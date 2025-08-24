@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGX0 Model Manager</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 40px; }
+        .header h1 { font-size: 3em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; }
+        .card { background: rgba(255, 255, 255, 0.95); border-radius: 15px; padding: 25px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); backdrop-filter: blur(10px); transition: transform 0.3s ease; }
+        .card:hover { transform: translateY(-5px); }
+        .card h3 { margin-top: 0; color: #2c3e50; font-size: 1.5em; }
+        .model-item { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #3498db; }
+        .model-name { font-weight: bold; color: #2c3e50; font-size: 1.1em; }
+        .model-size { color: #7f8c8d; font-size: 0.9em; }
+        .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+        .status-online { background-color: #27ae60; }
+        .status-offline { background-color: #e74c3c; }
+        .btn { background: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; margin: 5px; transition: background 0.3s ease; }
+        .btn:hover { background: #2980b9; }
+        .btn-danger { background: #e74c3c; }
+        .btn-danger:hover { background: #c0392b; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        .metric { background: #ecf0f1; padding: 15px; border-radius: 8px; text-align: center; }
+        .metric-value { font-size: 2em; font-weight: bold; color: #2c3e50; }
+        .metric-label { color: #7f8c8d; font-size: 0.9em; }
+    </style>
+    <script>
+        let models = [];
+        let systemStats = {};
+
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/tags');
+                const data = await response.json();
+                models = data.models || [];
+                renderModels();
+            } catch (error) {
+                console.error('Failed to load models:', error);
+                document.getElementById('models-list').innerHTML = '<p style="color: #e74c3c;">Failed to connect to Ollama API</p>';
+            }
+        }
+
+        async function loadSystemStats() {
+            try {
+                // Simulated stats - in real implementation, these would come from actual monitoring
+                systemStats = {
+                    gpuUsage: Math.floor(Math.random() * 100),
+                    memoryUsage: Math.floor(Math.random() * 100),
+                    temperature: Math.floor(Math.random() * 30) + 50,
+                    activeRequests: Math.floor(Math.random() * 10)
+                };
+                renderStats();
+            } catch (error) {
+                console.error('Failed to load system stats:', error);
+            }
+        }
+
+        function renderModels() {
+            const container = document.getElementById('models-list');
+            if (models.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #7f8c8d;">No models installed</p>';
+                return;
+            }
+
+            container.innerHTML = models.map(model => `
+                <div class="model-item">
+                    <div class="model-name">
+                        <span class="status-indicator status-online"></span>
+                        ${model.name}
+                    </div>
+                    <div class="model-size">Size: ${formatBytes(model.size || 0)}</div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn" onclick="testModel('${model.name}')">Test</button>
+                        <button class="btn btn-danger" onclick="removeModel('${model.name}')">Remove</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderStats() {
+            document.getElementById('gpu-usage').textContent = systemStats.gpuUsage + '%';
+            document.getElementById('memory-usage').textContent = systemStats.memoryUsage + '%';
+            document.getElementById('temperature').textContent = systemStats.temperature + '°C';
+            document.getElementById('active-requests').textContent = systemStats.activeRequests;
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function testModel(modelName) {
+            alert(`Testing model: ${modelName}\n\nThis would send a test prompt to the model.`);
+        }
+
+        async function removeModel(modelName) {
+            if (confirm(`Are you sure you want to remove model: ${modelName}?`)) {
+                try {
+                    const response = await fetch(`/api/delete`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: modelName })
+                    });
+                    if (response.ok) {
+                        loadModels(); // Reload the list
+                    }
+                } catch (error) {
+                    console.error('Failed to remove model:', error);
+                }
+            }
+        }
+
+        function pullModel() {
+            const modelName = document.getElementById('model-input').value.trim();
+            if (!modelName) {
+                alert('Please enter a model name');
+                return;
+            }
+            
+            alert(`Pulling model: ${modelName}\n\nThis would start downloading the model from Ollama registry.`);
+            document.getElementById('model-input').value = '';
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            loadModels();
+            loadSystemStats();
+        }, 30000);
+
+        // Load initial data
+        window.onload = () => {
+            loadModels();
+            loadSystemStats();
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AGX0 Model Manager</h1>
+            <p>NVIDIA Jetson Orin AGX - AI Model Control Center</p>
+        </div>
+        
+        <div class="card-grid">
+            <div class="card">
+                <h3>📊 System Metrics</h3>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="gpu-usage">--</div>
+                        <div class="metric-label">GPU Usage</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="memory-usage">--</div>
+                        <div class="metric-label">Memory Usage</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="temperature">--</div>
+                        <div class="metric-label">Temperature</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="active-requests">--</div>
+                        <div class="metric-label">Active Requests</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>📥 Pull New Model</h3>
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="model-input" placeholder="e.g., llama3.1:8b" style="width: 70%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <button class="btn" onclick="pullModel()">Pull</button>
+                </div>
+                <div style="font-size: 0.9em; color: #7f8c8d;">
+                    Popular models: llama3.1:8b, mistral:7b, codellama:7b, vicuna:7b
+                </div>
+            </div>
+            
+            <div class="card" style="grid-column: 1/-1;">
+                <h3>🗂️ Installed Models</h3>
+                <div id="models-list">
+                    <p style="text-align: center; color: #7f8c8d;">Loading models...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

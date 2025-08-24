@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui-cluster
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    environment:
+      # Core Ollama configuration
+      - OLLAMA_BASE_URLS=http://192.168.1.154:11434;http://192.168.1.157:11435
+      - OLLAMA_API_BASE_URL=http://192.168.1.154:11434/api
+      
+      # WebUI branding
+      - WEBUI_NAME=Ollama AI Cluster
+      - WEBUI_URL=http://localhost:3000
+      
+      # Authentication
+      - ENABLE_SIGNUP=true
+      - DEFAULT_USER_ROLE=user
+      - ENABLE_LOGIN_FORM=true
+      
+      # Features
+      - ENABLE_IMAGE_GENERATION=true
+      - ENABLE_COMMUNITY_SHARING=false
+      - SHOW_ADMIN_DETAILS=true
+      - ENABLE_RAG_HYBRID_SEARCH=true
+      
+      # Default models
+      - DEFAULT_MODELS=codellama:34b,qwen2.5-coder:32b,llama3:8b
+      
+    volumes:
+      - open-webui-data:/app/backend/data
+    networks:
+      - ollama-cluster
+
+  # Stable Diffusion for image generation  
+  automatic1111:
+    image: ghcr.io/abetlen/llama-cpp-python:latest-cuda
+    container_name: stable-diffusion-webui
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    environment:
+      - MODEL_PATH=/models
+    volumes:
+      - sd-models:/models
+      - sd-outputs:/outputs
+    networks:
+      - ollama-cluster
+    command: ["python", "-m", "http.server", "7860"]
+
+volumes:
+  open-webui-data:
+  sd-models:
+  sd-outputs:
+
+networks:
+  ollama-cluster:
+    driver: bridge

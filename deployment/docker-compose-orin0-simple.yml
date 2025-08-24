@@ -1,0 +1,102 @@
+version: '3.8'
+
+networks:
+  ai-network:
+    driver: bridge
+
+volumes: {}
+  # All volumes are now host-mounted for persistence
+  # Data is stored in ./data/ directory structure
+
+services:
+  # PostgreSQL for general database needs
+  postgres-sonar:
+    image: postgres:15-alpine
+    container_name: postgres-sonar
+    restart: unless-stopped
+    networks:
+      - ai-network
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar_password
+      POSTGRES_DB: sonarqube
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Secondary Ollama instance for distributed load
+  ollama-secondary:
+    image: ollama/ollama:latest
+    container_name: ollama-secondary
+    restart: unless-stopped
+    networks:
+      - ai-network
+    volumes:
+      - ./data/ollama-secondary:/root/.ollama
+      - ./data/ollama-secondary/models:/models
+    ports:
+      - "11435:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_MODELS=/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Code Server (VS Code in browser) - ARM64 compatible
+  code-server:
+    image: codercom/code-server:latest
+    container_name: code-server
+    restart: unless-stopped
+    networks:
+      - ai-network
+    volumes:
+      - ./data/codeserver-config:/home/coder/.config
+      - ./data/codeserver-workspace:/home/coder/workspace
+      - /home/mconners:/home/coder/project
+    ports:
+      - "8080:8080"
+    environment:
+      - PASSWORD=fieldday
+    command: --bind-addr 0.0.0.0:8080 --auth password /home/coder/project
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Simple web dashboard
+  nginx-orin0:
+    image: nginx:alpine
+    container_name: nginx-orin0
+    restart: unless-stopped
+    networks:
+      - ai-network
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      - code-server
+      - ollama-secondary
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

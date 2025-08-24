@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: open-webui-cluster
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # Connect to your existing Ollama instances
+      - OLLAMA_BASE_URLS=http://192.168.1.154:11434;http://192.168.1.157:11435
+      - OLLAMA_API_BASE_URL=http://192.168.1.154:11434/api
+      
+      # WebUI settings - ENABLE SIGNUP
+      - WEBUI_NAME=Ollama AI Cluster
+      - ENABLE_SIGNUP=true
+      - ENABLE_LOGIN_FORM=true
+      - DEFAULT_USER_ROLE=admin
+      - ENABLE_IMAGE_GENERATION=false
+      
+      # Security settings
+      - WEBUI_AUTH_TRUSTED_EMAIL_HEADER=
+      - ENABLE_OAUTH_SIGNUP=false
+      
+    volumes:
+      - open-webui-data:/app/backend/data
+
+volumes:
+  open-webui-data:

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Cluster Gateway</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; color: #333; margin-bottom: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card h3 { margin-top: 0; color: #2c3e50; }
+        .status { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .status.online { background: #d4edda; color: #155724; }
+        .status.offline { background: #f8d7da; color: #721c24; }
+        .link { color: #007bff; text-decoration: none; }
+        .link:hover { text-decoration: underline; }
+        .metric { margin: 10px 0; }
+        .metric-value { font-weight: bold; color: #2c3e50; }
+    </style>
+    <script>
+        async function updateStatus() {
+            try {
+                // Check Ollama Primary
+                const ollamaResponse = await fetch('http://192.168.1.147:11435/api/tags');
+                document.getElementById('ollama-status').className = 'status online';
+                document.getElementById('ollama-status').textContent = 'Online';
+                
+                // Check other nodes (would be populated dynamically)
+                updateNodeStatuses();
+            } catch (error) {
+                document.getElementById('ollama-status').className = 'status offline';
+                document.getElementById('ollama-status').textContent = 'Offline';
+            }
+        }
+        
+        function updateNodeStatuses() {
+            const nodes = [
+                { name: 'ORIN0', ip: '192.168.1.157', port: '11434' },
+                { name: 'PI52', ip: '192.168.1.247', port: '11434' },
+                { name: 'AGX0', ip: '192.168.1.154', port: '11434' }
+            ];
+            
+            nodes.forEach(async (node) => {
+                try {
+                    const response = await fetch(`http://${node.ip}:${node.port}/api/tags`);
+                    document.getElementById(`${node.name.toLowerCase()}-status`).className = 'status online';
+                    document.getElementById(`${node.name.toLowerCase()}-status`).textContent = 'Online';
+                } catch (error) {
+                    document.getElementById(`${node.name.toLowerCase()}-status`).className = 'status offline';
+                    document.getElementById(`${node.name.toLowerCase()}-status`).textContent = 'Offline';
+                }
+            });
+        }
+        
+        setInterval(updateStatus, 30000);
+        window.onload = updateStatus;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Ollama Cluster Gateway</h1>
+            <p>Distributed AI Processing Network</p>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>Gateway Services</h3>
+                <div class="metric">
+                    <span>Primary Ollama:</span>
+                    <span id="ollama-status" class="status offline">Checking...</span>
+                </div>
+                <div class="metric">
+                    <span>Traefik Dashboard:</span>
+                    <a href="http://192.168.1.147:8080" class="link" target="_blank">View Dashboard</a>
+                </div>
+                <div class="metric">
+                    <span>API Endpoint:</span>
+                    <a href="http://192.168.1.147:11434/api/tags" class="link" target="_blank">Test API</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Cluster Nodes</h3>
+                <div class="metric">
+                    <span>ORIN0 (Secondary):</span>
+                    <span id="orin0-status" class="status offline">Checking...</span>
+                    <a href="http://192.168.1.157:11434/api/tags" class="link" target="_blank">Test</a>
+                </div>
+                <div class="metric">
+                    <span>PI52 (Backend):</span>
+                    <span id="pi52-status" class="status offline">Checking...</span>
+                    <a href="http://192.168.1.247:11434/api/tags" class="link" target="_blank">Test</a>
+                </div>
+                <div class="metric">
+                    <span>AGX0 (Primary AI):</span>
+                    <span id="agx0-status" class="status offline">Checking...</span>
+                    <a href="http://192.168.1.154:11434/api/tags" class="link" target="_blank">Test</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Quick Actions</h3>
+                <div class="metric">
+                    <a href="http://192.168.1.157:3001" class="link" target="_blank">🖥️ ORIN0 Code Server</a>
+                </div>
+                <div class="metric">
+                    <a href="http://192.168.1.157:5432" class="link">🗄️ ORIN0 PostgreSQL</a>
+                </div>
+                <div class="metric">
+                    <a href="http://192.168.1.247:8000" class="link" target="_blank">📊 PI52 Monitoring</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>System Info</h3>
+                <div class="metric">
+                    <span class="metric-value">Network:</span> 192.168.1.0/24
+                </div>
+                <div class="metric">
+                    <span class="metric-value">Gateway IP:</span> 192.168.1.147
+                </div>
+                <div class="metric">
+                    <span class="metric-value">Load Balancer:</span> Traefik
+                </div>
+                <div class="metric">
+                    <span class="metric-value">Last Update:</span> <span id="last-update">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('last-update').textContent = new Date().toLocaleString();
+    </script>
+</body>
+</html>

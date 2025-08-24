@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui-cluster
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    environment:
+      # Ollama endpoints for your cluster
+      - OLLAMA_BASE_URLS=http://192.168.1.154:11434;http://192.168.1.157:11435
+      - OLLAMA_API_BASE_URL=http://192.168.1.154:11434/api
+      - WEBUI_NAME=Ollama AI Cluster
+      - WEBUI_URL=http://localhost:3000
+      
+      # Authentication settings
+      - ENABLE_SIGNUP=true
+      - DEFAULT_USER_ROLE=user
+      - ENABLE_LOGIN_FORM=true
+      
+      # Advanced features
+      - ENABLE_IMAGE_GENERATION=true
+      - ENABLE_COMMUNITY_SHARING=false
+      - SHOW_ADMIN_DETAILS=true
+      
+      # RAG and document features
+      - ENABLE_RAG_HYBRID_SEARCH=true
+      - ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION=false
+      - RAG_EMBEDDING_ENGINE=ollama
+      - RAG_EMBEDDING_MODEL=nomic-embed-text:latest
+      
+      # Code execution (for coding assistant)
+      - ENABLE_EVALUATION_ARENA_MODELS=true
+      - TASK_MODEL=codellama:34b
+      - TITLE_GENERATION_PROMPT_TEMPLATE="Generate a concise title for this conversation about {{prompt}}"
+      
+      # UI customization
+      - DEFAULT_MODELS=codellama:34b,qwen2.5-coder:32b,llama3:8b
+      - DEFAULT_PROMPT_SUGGESTIONS=[{"title": "Code Review", "content": "Review this code and suggest improvements"}, {"title": "Debug Help", "content": "Help me debug this issue"}, {"title": "Architecture Design", "content": "Design a system architecture for"}, {"title": "Generate Image", "content": "Create an image of"}, {"title": "Explain Concept", "content": "Explain this concept in simple terms"}]
+      
+    volumes:
+      - open-webui-data:/app/backend/data
+      - /tmp:/tmp
+    networks:
+      - ollama-cluster-net
+
+  # Image generation with AUTOMATIC1111
+  stable-diffusion-webui:
+    image: continuumio/miniconda3
+    container_name: stable-diffusion-webui
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    environment:
+      - COMMANDLINE_ARGS=--listen --api --xformers --enable-insecure-extension-access
+    volumes:
+      - sd-models:/app/models
+      - sd-outputs:/app/outputs
+    command: >
+      bash -c "
+        conda install -y python=3.10 &&
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 &&
+        git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git /app &&
+        cd /app &&
+        python launch.py --listen --api --xformers --enable-insecure-extension-access
+      "
+    networks:
+      - ollama-cluster-net
+
+  # Embedding service for RAG
+  embedding-service:
+    image: ollama/ollama:latest
+    container_name: embedding-ollama
+    restart: unless-stopped
+    ports:
+      - "11436:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - embedding-models:/root/.ollama
+    networks:
+      - ollama-cluster-net
+
+volumes:
+  open-webui-data:
+  sd-models:
+  sd-outputs:
+  embedding-models:
+
+networks:
+  ollama-cluster-net:
+    driver: bridge

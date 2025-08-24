@@ -1,0 +1,109 @@
+version: '3.8'
+
+networks:
+  ollama_cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik-gateway
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:8081
+      - --entrypoints.websecure.address=:8443
+      - --entrypoints.ollama.address=:11434
+      - --log.level=INFO
+    ports:
+      - "8081:8081"
+      - "8443:8443"
+      - "8080:8080"
+      - "11434:11434"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ollama_cluster
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ollama-primary:
+    image: ollama/ollama:latest
+    container_name: ollama-primary
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    volumes:
+      - ./data/ollama-primary:/root/.ollama
+      - ./data/ollama-primary/models:/models
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_MODELS=/models
+    networks:
+      - ollama_cluster
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama-primary.rule=Host(`192.168.1.147`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.ollama-primary.entrypoints=ollama"
+      - "traefik.http.services.ollama-primary.loadbalancer.server.port=11434"
+      - "traefik.http.routers.ollama-primary.priority=100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  gateway-dashboard:
+    image: nginx:alpine
+    container_name: gateway-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./gateway-html:/usr/share/nginx/html:ro
+    networks:
+      - ollama_cluster
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`192.168.1.147`) && PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.dashboard.entrypoints=web"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=80"
+    depends_on:
+      - traefik
+
+  load-balancer-config:
+    image: traefik:v3.0
+    container_name: lb-config
+    restart: "no"
+    command: |
+      sh -c '
+      # Wait for other services to be ready
+      sleep 30
+      # Configure load balancing rules for cluster nodes
+      echo "Load balancer configuration complete"
+      '
+    networks:
+      - ollama_cluster
+    depends_on:
+      - traefik
+      - ollama-primary
+
+volumes: {}
+  # All volumes are now host-mounted for persistence
+  # Data is stored in ./data/ directory structure

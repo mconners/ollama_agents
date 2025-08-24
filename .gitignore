@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# SSH Keys and Secrets
+*.pem
+*_key
+*_key.pub
+.ssh/
+*.backup.*
+
+# Configuration with sensitive data
+config/router_config.json
+*password*
+*secret*
+*credential*
+*auth*
+*token*
+*api_key*
+*fieldday*
+*passwd*
+*pwd*
+
+# Sensitive configuration files
+config/*password*
+config/*credential*
+config/*auth*
+*.env
+.env.*
+secrets/
+credentials/
+
+# Files containing hardcoded credentials
+deployment/index-orin0.html
+deployment/health-check-orin0.sh
+deployment/setup_orin0_fixed.sh
+deployment/docker-compose-orin0-fixed.yml
+deployment/setup_pi51_fixed.sh
+deployment/*fixed*
+deployment/deploy_system.sh
+deployment/setup_pi51.sh
+deployment/setup_pi52.sh
+
+# Logs and outputs
+*.log
+output/*.csv
+output/*.json
+output/*.log
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*~

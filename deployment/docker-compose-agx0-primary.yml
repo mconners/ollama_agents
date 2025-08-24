@@ -1,0 +1,129 @@
+version: '3.8'
+
+networks:
+  ollama_cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+services:
+  ollama-main:
+    image: ollama/ollama:latest
+    container_name: ollama-main-agx0
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+      - "11436:11436"  # Additional port for load balancing
+    volumes:
+      - ./data/ollama:/root/.ollama
+      - ~/ollama:/models
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_ORIGINS=*
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    networks:
+      - ollama_cluster
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+          memory: 4G
+        limits:
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  jupyter-ai:
+    image: jupyter/tensorflow-notebook:latest
+    container_name: jupyter-ai-agx0
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data/jupyter:/home/jovyan/work
+      - ./data/ollama:/home/jovyan/.ollama:ro
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=ollama_cluster_2025
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    networks:
+      - ollama_cluster
+    depends_on:
+      - ollama-main
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+          memory: 2G
+        limits:
+          memory: 4G
+
+  model-manager:
+    image: nginx:alpine
+    container_name: model-manager-agx0
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    volumes:
+      - ./nginx.conf.d:/usr/share/nginx/html:ro
+    networks:
+      - ollama_cluster
+    depends_on:
+      - ollama-main
+
+  redis-cache:
+    image: redis:alpine
+    container_name: redis-cache-agx0
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - ollama_cluster
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-agx0
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./data/prometheus:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - ollama_cluster
+
+volumes: {}
+  # All volumes are now host-mounted for persistence
+  # Data is stored in ./data/ directory structure
+
+networks:
+  ollama_cluster:
+    driver: bridge
+
+volumes: {}
+  # All volumes are now host-mounted for persistence
+  # Data is stored in ./data/ directory structure

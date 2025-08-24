@@ -1,0 +1,20 @@
+{
+  "router_ip": "192.168.1.1",
+  "router_user": "root",
+  "router_password": "your_password_here",
+  "ssh_port": 22,
+  "web_port": 80,
+  "use_https": false,
+  "timeout": 30,
+  "method": "ssh",
+  "_comments": {
+    "router_ip": "IP address of your OpenWRT router",
+    "router_user": "SSH username (usually 'root' for OpenWRT)",
+    "router_password": "SSH password or leave empty for key-based auth",
+    "ssh_port": "SSH port (default: 22)",
+    "web_port": "Web interface port (default: 80 for HTTP, 443 for HTTPS)",
+    "use_https": "Use HTTPS for web interface (true/false)",
+    "timeout": "Connection timeout in seconds",
+    "method": "Query method: 'ssh', 'web', or 'both'"
+  }
+}

@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  ollama-secondary:
+    image: ollama/ollama:latest
+    container_name: ollama-secondary
+    volumes:
+      - ./data/ollama-secondary/models:/root/.ollama
+      - /mnt/shared-models:/shared-models:ro
+    ports:
+      - "11435:11434"
+    networks:
+      - ai-network
+    restart: unless-stopped
+    environment:
+      - OLLAMA_MODELS=/root/.ollama
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  postgres-sonar:
+    image: postgres:15
+    container_name: postgres-sonar
+    environment:
+      - POSTGRES_DB=sonar
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar123
+    volumes:
+      - ./data/postgres-sonar:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+  code-server-orin0:
+    image: codercom/code-server:latest
+    container_name: code-server-orin0
+    environment:
+      - PASSWORD=jetsoncopilot
+    volumes:
+      - ./data/code-server-orin0:/home/coder
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8081:8080"
+    networks:
+      - ai-network
+    depends_on:
+      - ollama-secondary
+    restart: unless-stopped
+
+networks:
+  ai-network:
+    driver: bridge
+    name: ${USER}_ai-network

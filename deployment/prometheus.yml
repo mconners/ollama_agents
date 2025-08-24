@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'ollama-agx0'
+    static_configs:
+      - targets: ['ollama-main-agx0:11434']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  - job_name: 'jupyter-agx0'
+    static_configs:
+      - targets: ['jupyter-ai-agx0:8888']
+    scrape_interval: 30s
+
+  - job_name: 'redis-agx0'
+    static_configs:
+      - targets: ['redis-cache-agx0:6379']
+    scrape_interval: 30s
+
+  - job_name: 'gateway-node'
+    static_configs:
+      - targets: ['192.168.1.147:8080']
+    scrape_interval: 30s
+
+  - job_name: 'orin0-node'
+    static_configs:
+      - targets: ['192.168.1.157:11434']
+    scrape_interval: 30s
+
+  - job_name: 'pi52-node'
+    static_configs:
+      - targets: ['192.168.1.247:8000']
+    scrape_interval: 30s

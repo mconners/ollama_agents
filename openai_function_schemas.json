@@ -1,0 +1,118 @@
+{
+  "description": "OpenAI Function Calling Schemas for Network Resolution Agent",
+  "functions": [
+    {
+      "name": "resolve_hostname_to_ip",
+      "description": "Resolve a hostname to its IP address using DNS lookup and local network data",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "description": "The hostname to resolve (e.g., 'google.com', 'router.local', 'my-laptop')"
+          },
+          "include_router_data": {
+            "type": "boolean",
+            "description": "Whether to check local router/network data first for faster resolution",
+            "default": true
+          }
+        },
+        "required": [
+          "hostname"
+        ]
+      }
+    },
+    {
+      "name": "resolve_ip_to_hostname",
+      "description": "Resolve an IP address to its hostname using reverse DNS and local network data",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ip_address": {
+            "type": "string",
+            "description": "The IP address to resolve (e.g., '192.168.1.100', '8.8.8.8')"
+          },
+          "include_router_data": {
+            "type": "boolean",
+            "description": "Whether to check local router/network data first for faster resolution",
+            "default": true
+          }
+        },
+        "required": [
+          "ip_address"
+        ]
+      }
+    },
+    {
+      "name": "bulk_resolve",
+      "description": "Resolve multiple hostnames or IP addresses in a single request",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "queries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of hostnames or IP addresses to resolve"
+          },
+          "auto_detect_type": {
+            "type": "boolean",
+            "description": "Automatically detect whether each query is a hostname or IP address",
+            "default": true
+          }
+        },
+        "required": [
+          "queries"
+        ]
+      }
+    },
+    {
+      "name": "get_network_info",
+      "description": "Get comprehensive network information about a hostname or IP address",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "The hostname or IP address to analyze"
+          }
+        },
+        "required": [
+          "target"
+        ]
+      }
+    }
+  ],
+  "usage_example": {
+    "resolve_hostname": {
+      "name": "resolve_hostname_to_ip",
+      "arguments": {
+        "hostname": "google.com"
+      }
+    },
+    "resolve_ip": {
+      "name": "resolve_ip_to_hostname",
+      "arguments": {
+        "ip_address": "8.8.8.8"
+      }
+    },
+    "bulk_resolve": {
+      "name": "bulk_resolve",
+      "arguments": {
+        "queries": [
+          "google.com",
+          "8.8.8.8",
+          "github.com"
+        ],
+        "auto_detect_type": true
+      }
+    },
+    "network_info": {
+      "name": "get_network_info",
+      "arguments": {
+        "target": "google.com"
+      }
+    }
+  }
+}

@@ -1,0 +1,271 @@
+#!/bin/bash
+
+# Ollama Cluster Management Hub
+# Complete access and control for your distributed AI system
+
+echo "🌐 Ollama Distributed AI Cluster"
+echo "================================="
+echo "Your 7-node AI cluster with 134GB of models"
+echo ""
+
+# Cluster configuration
+declare -A NODES=(
+    ["AGX0"]="192.168.1.154"   # Primary AI processing (134GB models)
+    ["ORIN0"]="192.168.1.157"  # Secondary services + shared models
+    ["PI51"]="192.168.1.147"   # Gateway + load balancer
+    ["PI52"]="192.168.1.XXX"   # Utility node (not deployed yet)
+    ["PI41"]="192.168.1.XXX"   # Utility node (not deployed yet) 
+    ["NANO"]="192.168.1.XXX"   # Utility node (not deployed yet)
+    ["PI31"]="192.168.1.XXX"   # Utility node (not deployed yet)
+)
+
+# Service endpoints
+SERVICES=(
+    "AGX0 Ollama API|http://192.168.1.154:11434|Main AI models (134GB collection)"
+    "ORIN0 Ollama API|http://192.168.1.157:11435|Secondary AI + shared models"
+    "ORIN0 Code Server|http://192.168.1.157:8081|Web development environment"
+    "ORIN0 PostgreSQL|192.168.1.157:5433|Database (user:sonar, pass:sonar123)"
+    "Open WebUI|http://192.168.1.157:8080|Complete web interface (coding, chat, images)"
+    "Stable Diffusion|http://192.168.1.157:7860|Image generation web UI"
+    "PI51 Gateway|http://192.168.1.147|Load balancer (when deployed)"
+)
+
+# Model inventory
+MODELS=(
+    "codellama:34b|34B parameters|Advanced coding assistant"
+    "qwen2.5-coder:32b|32B parameters|Expert programming model"
+    "gemma2:27b|27B parameters|General purpose chat"
+    "devstral:24b|24B parameters|Development focused"
+    "mistral-small3.2:latest|24B parameters|Mistral's powerful model"
+    "llama3:8b|8B parameters|Meta's flagship model"
+    "qwen2.5vl:3b|3.8B parameters|Vision + language (images!)"
+    "phi3:mini|3.8B parameters|Lightweight & fast"
+)
+
+show_status() {
+    echo "📊 Cluster Status"
+    echo "=================="
+    
+    for service in "${SERVICES[@]}"; do
+        IFS='|' read -r name url description <<< "$service"
+        printf "%-25s " "$name:"
+        
+        if [[ $url == http* ]]; then
+            if curl -s --connect-timeout 3 "$url/api/tags" >/dev/null 2>&1 || curl -s --connect-timeout 3 "$url" >/dev/null 2>&1; then
+                echo -e "✅ UP - $description"
+            else
+                echo -e "❌ DOWN - $description"
+            fi
+        else
+            if nc -z ${url%:*} ${url#*:} 2>/dev/null; then
+                echo -e "✅ UP - $description"
+            else
+                echo -e "❌ DOWN - $description"
+            fi
+        fi
+    done
+    echo ""
+}
+
+show_models() {
+    echo "🤖 Available AI Models"
+    echo "======================"
+    echo "Total: 18 models across 134GB collection"
+    echo ""
+    
+    for model in "${MODELS[@]}"; do
+        IFS='|' read -r name size desc <<< "$model"
+        printf "%-25s %-20s %s\n" "$name" "($size)" "$desc"
+    done
+    echo ""
+}
+
+show_access() {
+    echo "🔗 Quick Access URLs"
+    echo "===================="
+    echo "Web Interfaces:"
+    echo "  • Code Development:    http://192.168.1.157:8081 (password: ollama-cluster-dev)"
+    echo "  • Gateway Dashboard:   http://192.168.1.147 (when deployed)"
+    echo ""
+    echo "API Endpoints:"
+    echo "  • Main AI Models:      http://192.168.1.154:11434"  
+    echo "  • Secondary Models:    http://192.168.1.157:11435"
+    echo "  • Database:            postgresql://sonar:sonar123@192.168.1.157:5433/sonar"
+    echo ""
+    echo "SSH Access:"
+    echo "  ssh -i ~/.ssh/ollama_cluster_key mconners@192.168.1.154  # AGX0"
+    echo "  ssh -i ~/.ssh/ollama_cluster_key mconners@192.168.1.157  # ORIN0"  
+    echo "  ssh -i ~/.ssh/ollama_cluster_key mconners@192.168.1.147  # PI51"
+    echo ""
+}
+
+test_model() {
+    local model=${1:-"phi3:mini"}
+    local node=${2:-"agx0"}
+    local prompt=${3:-"Hello! Write a Python function to calculate fibonacci numbers."}
+    
+    case $node in
+        "agx0")
+            endpoint="http://192.168.1.154:11434"
+            ;;
+        "orin0")
+            endpoint="http://192.168.1.157:11435"
+            ;;
+        *)
+            echo "Unknown node: $node. Use 'agx0' or 'orin0'"
+            return 1
+            ;;
+    esac
+    
+    echo "🧪 Testing $model on $(echo $node | tr '[:lower:]' '[:upper:]')"
+    echo "📝 Prompt: ${prompt:0:60}..."
+    echo ""
+    
+    start_time=$(date +%s)
+    response=$(curl -s -m 120 -X POST "$endpoint/api/generate" \
+        -d "{\"model\":\"$model\",\"prompt\":\"$prompt\",\"stream\":false}")
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    
+    if echo "$response" | grep -q '"response"'; then
+        actual_response=$(echo "$response" | jq -r '.response' 2>/dev/null)
+        echo "⏱️  Response time: ${duration}s"
+        echo "📄 Response:"
+        echo "$actual_response" | head -20
+        echo ""
+        [ $(echo "$actual_response" | wc -l) -gt 20 ] && echo "... (truncated)"
+    else
+        echo "❌ Error:"
+        echo "$response" | jq '.' 2>/dev/null || echo "$response"
+    fi
+}
+
+deploy_node() {
+    local node_name=$1
+    case $node_name in
+        "pi51"|"gateway")
+            echo "🚀 Deploying PI51 Gateway..."
+            scp -i ~/.ssh/ollama_cluster_key deployment/docker-compose-pi51-gateway-shared.yml mconners@192.168.1.147:~/docker-compose.yml
+            ssh -i ~/.ssh/ollama_cluster_key mconners@192.168.1.147 "docker compose up -d"
+            ;;
+        "agx0"|"primary")
+            echo "🚀 Deploying AGX0 Primary Stack..."
+            echo "Already running Ollama with jetson-containers!"
+            echo "✅ AGX0 is operational with 134GB model collection"
+            ;;
+        *)
+            echo "Available deployments: pi51, agx0"
+            ;;
+    esac
+}
+
+interactive_chat() {
+    local model=${1:-"llama3:8b"}
+    local endpoint="http://192.168.1.154:11434"
+    
+    echo "💬 Interactive Chat with $model"
+    echo "================================="
+    echo "Type 'quit' to exit, 'switch <model>' to change model"
+    echo ""
+    
+    while true; do
+        read -p "You: " input
+        
+        case $input in
+            "quit"|"exit")
+                echo "👋 Goodbye!"
+                break
+                ;;
+            switch\ *)
+                model=$(echo $input | cut -d' ' -f2-)
+                echo "🔄 Switched to $model"
+                continue
+                ;;
+            "")
+                continue
+                ;;
+        esac
+        
+        echo -n "🤖 $model: "
+        response=$(curl -s -X POST "$endpoint/api/generate" \
+            -d "{\"model\":\"$model\",\"prompt\":\"$input\",\"stream\":false}")
+        
+        if echo "$response" | grep -q '"response"'; then
+            echo "$response" | jq -r '.response'
+        else
+            echo "❌ Error occurred"
+        fi
+        echo ""
+    done
+}
+
+case "$1" in
+    "status"|"")
+        show_status
+        show_access
+        ;;
+    "models")
+        show_models
+        ;;
+    "test")
+        test_model "$2" "$3" "$4"
+        ;;
+    "chat")
+        interactive_chat "$2"
+        ;;
+    "deploy")
+        deploy_node "$2"
+        ;;
+    "coding")
+        echo "🔧 Testing coding models..."
+        test_model "codellama:34b" "agx0" "Create a Python web scraper using BeautifulSoup"
+        ;;
+    "advanced")
+        echo "🧠 Testing advanced models..."
+        test_model "qwen2.5-coder:32b" "agx0" "Design a distributed microservices architecture"
+        ;;
+    "vision")
+        echo "👁️ Testing vision model..."
+        test_model "qwen2.5vl:3b" "agx0" "Describe what capabilities vision-language models have"
+        ;;
+    "web")
+        echo "🌐 Opening web interfaces..."
+        echo "Code Server: http://192.168.1.157:8081"
+        python3 -c "import webbrowser; webbrowser.open('http://192.168.1.157:8081')" 2>/dev/null || echo "Open manually: http://192.168.1.157:8081"
+        ;;
+    "webui")
+        echo "🚀 Setting up Open WebUI..."
+        ./setup-openwebui.sh "$2"
+        ;;
+    *)
+        echo "🎯 Ollama Cluster Management"
+        echo "============================"
+        echo "Usage: $0 [command] [options]"
+        echo ""
+        echo "Commands:"
+        echo "  status          Show cluster status and access info (default)"
+        echo "  models          List all available AI models"
+        echo "  test <model>    Test a specific model"
+        echo "  chat [model]    Interactive chat with AI"
+        echo "  coding          Test powerful coding models"
+        echo "  advanced        Test most advanced models"  
+        echo "  vision          Test vision-language model"
+        echo "  web             Open web interfaces"
+        echo "  webui           Setup/manage Open WebUI (coding, chat, images)"
+        echo "  deploy <node>   Deploy additional nodes"
+        echo ""
+        echo "Examples:"
+        echo "  $0                              # Show status"
+        echo "  $0 test codellama:34b           # Test coding model"
+        echo "  $0 chat llama3:8b               # Interactive chat"
+        echo "  $0 coding                       # Test all coding models"
+        echo "  $0 webui                        # Setup complete web interface"
+        echo "  $0 deploy pi51                  # Deploy gateway"
+        echo ""
+        echo "💡 Quick Start:"
+        echo "  1. Run '$0 status' to see what's running"
+        echo "  2. Run '$0 webui' to setup complete web interface"
+        echo "  3. Run '$0 coding' to test your powerful models"
+        echo "  4. Run '$0 web' to open development environment"
+        ;;
+esac
