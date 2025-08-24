@@ -67,6 +67,10 @@ output/*.csv
 output/*.json
 output/*.log
 
+# Backup files (too large for git)
+backups/
+logs/
+
 # Docker
 .docker/
 

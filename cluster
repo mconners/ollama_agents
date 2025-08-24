@@ -64,6 +64,16 @@ show_status() {
             fi
         fi
     done
+    
+    # Check NFS model sharing
+    printf "%-25s " "NFS Model Share:"
+    if ssh -i ~/.ssh/ollama_cluster_key mconners@192.168.1.157 "mount | grep -q '192.168.1.154.*shared-models'" 2>/dev/null; then
+        nfs_size=$(ssh -i ~/.ssh/ollama_cluster_key mconners@192.168.1.157 "df -h /mnt/shared-models | tail -1 | awk '{print \$3\"/\"\$2}'" 2>/dev/null || echo "unknown")
+        echo -e "✅ UP - Models shared via NFS ($nfs_size)"
+    else
+        echo -e "❌ DOWN - NFS mount not available"
+    fi
+    
     echo ""
 }
 
@@ -237,6 +247,18 @@ case "$1" in
         echo "🚀 Setting up Open WebUI..."
         ./setup-openwebui.sh "$2"
         ;;
+    "backup")
+        echo "💾 Backing up Open WebUI data..."
+        ./backup-openwebui.sh
+        ;;
+    "restore")
+        if [ -z "$2" ]; then
+            echo "📁 Available backups:"
+            ./restore-openwebui.sh
+        else
+            ./restore-openwebui.sh "$2"
+        fi
+        ;;
     *)
         echo "🎯 Ollama Cluster Management"
         echo "============================"
@@ -252,6 +274,8 @@ case "$1" in
         echo "  vision          Test vision-language model"
         echo "  web             Open web interfaces"
         echo "  webui           Setup/manage Open WebUI (coding, chat, images)"
+        echo "  backup          Backup Open WebUI user data"
+        echo "  restore [file]  Restore Open WebUI from backup"
         echo "  deploy <node>   Deploy additional nodes"
         echo ""
         echo "Examples:"
